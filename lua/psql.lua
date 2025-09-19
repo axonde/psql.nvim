@@ -3,7 +3,7 @@ local function is_sql_file(buf_name)
 end
 
 local function get_connection_name(line)
-	local connection_name = string.match(line, "^%-%- psql:(.*)")
+	local connection_name = string.match(line, "^%s*%-%-%s*psql:(.*)")
 	return connection_name
 end
 
@@ -12,27 +12,21 @@ local function psql_run_ad_hoc(sql_command)
 	local firstline = table.concat(vim.api.nvim_buf_get_lines(0, 0, 1, false), "")
 	local connection_name = get_connection_name(firstline)
 	if connection_name == nil or connection_name == "" then
-		vim.notify("Invalid psqlcm connection identifier. Should be '-- psql:<connection_name>'",
-			vim.log.levels.ERROR)
+		vim.notify(
+			"Invalid psqlcm connection identifier. Should be finded in YOUR file (or where the selection is) '-- psql:<connection_name>'",
+			vim.log.levels.ERROR
+		)
 		return
 	end
 	os.execute(string.format("echo > %s", output_file))
 
-	local run_string = string.format(
-		"psql $(psqlcm show %s) -c \"%s\" &> %s",
-		connection_name,
-		sql_command,
-		output_file
-	)
-	local job_id = vim.fn.jobstart(
-		run_string,
-		{
-			on_exit = function(_, _, _)
-				vim.notify("Query completed")
-				vim.api.nvim_command("checktime")
-			end
-		}
-	)
+	local run_string = string.format('psql $(psqlcm show %s) -c "%s" &> %s', connection_name, sql_command, output_file)
+	local job_id = vim.fn.jobstart(run_string, {
+		on_exit = function(_, _, _)
+			vim.notify("Query completed")
+			vim.api.nvim_command("checktime")
+		end,
+	})
 	vim.g["psql_job_id"] = job_id
 
 	local bufs = vim.api.nvim_list_bufs()
@@ -69,28 +63,19 @@ local function psql_run_file(sql_file)
 	local firstline = table.concat(vim.api.nvim_buf_get_lines(0, 0, 1, false), "")
 	local connection_name = get_connection_name(firstline)
 	if connection_name == nil or connection_name == "" then
-		vim.notify("Invalid psqlcm connection identifier. Should be '-- psql:<connection_name>'",
-			vim.log.levels.ERROR)
+		vim.notify("Invalid psqlcm connection identifier. Should be '-- psql:<connection_name>'", vim.log.levels.ERROR)
 		return
 	end
 	os.execute(string.format("echo > %s", output_file))
 	vim.api.nvim_command("write")
 
-	local run_string = string.format(
-		"psql $(psqlcm show %s) -f %s &> %s",
-		connection_name,
-		sql_file,
-		output_file
-	)
-	local job_id = vim.fn.jobstart(
-		run_string,
-		{
-			on_exit = function(_, _, _)
-				vim.notify("Query completed")
-				vim.api.nvim_command("checktime")
-			end
-		}
-	)
+	local run_string = string.format("psql $(psqlcm show %s) -f %s &> %s", connection_name, sql_file, output_file)
+	local job_id = vim.fn.jobstart(run_string, {
+		on_exit = function(_, _, _)
+			vim.notify("Query completed")
+			vim.api.nvim_command("checktime")
+		end,
+	})
 	vim.g["psql_job_id"] = job_id
 
 	local bufs = vim.api.nvim_list_bufs()
@@ -134,7 +119,7 @@ local function psql_run_visual()
 		lines[line_count] = string.sub(lines[line_count], 1, endpos[3])
 	end
 
-	local visual_text = table.concat(lines, '\n')
+	local visual_text = table.concat(lines, "\n")
 
 	f:write(visual_text)
 	f:close()
@@ -177,5 +162,5 @@ return {
 	psql_get_tables = psql_get_tables,
 	psql_get_databases = psql_get_databases,
 	psql_get_functions = psql_get_functions,
-	psql_format = psql_format
+	psql_format = psql_format,
 }
