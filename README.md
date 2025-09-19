@@ -31,7 +31,7 @@ If you want to sync the connection with psqlcm (and you'll want it, because with
 For example, you have set a connection with [psqlcm](github.com/trstringer/psqlcm) like `connection-for-nvim`. So you must to create a single comment on top of your scratch:
 
 ```
--- psql:pg1758281367645
+-- psql:connection-for-nvim
 ```
 
 It's terrible important that you left this comment on the top of your file!
