@@ -1,10 +1,6 @@
 --[[
   psql.nvim - PSQL Command Runner
-  
-  *******************************************************************************
-  *** ВНИМАНИЕ: ФИНАЛЬНАЯ ОТЛАДКА С ПОМОЩЬЮ PSQL_TRACE                       ***
-  *** Этот код запишет подробный лог действий psql в файл.                   ***
-  *******************************************************************************
+  This is the final, production-ready version.
 ]]
 
 local config = require("psql.config")
@@ -67,6 +63,13 @@ function M.execute_query(conn_details, query, callback)
 	local passfile_path
 	local decrypted_password
 
+	-- ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ: Мы должны вручную передать PATH,
+	-- так как vim.loop.spawn заменяет, а не дополняет окружение.
+	local path_var = os.getenv("PATH")
+	if path_var then
+		table.insert(env_vars, "PATH=" .. path_var)
+	end
+
 	if conn_details.encrypted_password then
 		decrypted_password = crypto.decrypt(conn_details.encrypted_password)
 	end
@@ -92,11 +95,6 @@ function M.execute_query(conn_details, query, callback)
 		end
 	end
 
-	-- ФИНАЛЬНАЯ ОТЛАДКА: Устанавливаем PSQL_TRACE
-	local trace_file_path = vim.fn.tempname()
-	table.insert(env_vars, "PSQL_TRACE=" .. trace_file_path)
-	vim.notify("PSQL: Tracing psql execution. Trace file: " .. trace_file_path, vim.log.levels.INFO)
-
 	local stdout = vim.loop.new_pipe(false)
 	local stderr = vim.loop.new_pipe(false)
 	local stdout_chunks = {}
@@ -116,7 +114,6 @@ function M.execute_query(conn_details, query, callback)
 		if passfile_path then
 			os.remove(passfile_path)
 		end
-		-- Мы не удаляем trace_file, чтобы вы могли его прочитать.
 		callback(table.concat(stdout_chunks), table.concat(stderr_chunks), code)
 	end)
 
