@@ -33,6 +33,44 @@ return {
 }
 ```
 
+But this is not a perfect way, if you are sharing the config to a git instance, where people can get easily your credit information. To fix this (cause I have this problem, uuff it was an open source database credit) you can create a global `psql.json` file and store all the info in it.
+And than create a config like this:
+
+```lua
+local function loadJsonFromFile(filepath)
+	local file = io.open(filepath, "r")
+	if not file then
+		vim.notify("Cannot open the file: " .. filepath, vim.log.levels.ERROR)
+		return nil
+	end
+
+	local content = file:read("*a")
+	io.close(file)
+
+	local ok, decoded_json = pcall(vim.fn.json_decode, content)
+
+	if not ok then
+		vim.notify("Ill formated JSON: " .. filepath, vim.log.levels.ERROR)
+		return nil
+	end
+
+	return decoded_json
+end
+
+local connections = loadJsonFromFile("your-path-to-the-secret-file.json")
+
+return {
+	"axonde/psql.nvim",
+	cmd = { "Psql", "PsqlExec", "PsqlListDBs" },
+	config = function()
+		require("psql").setup({
+			connections = connections,
+			runner_output = "split",
+		})
+	end,
+}
+```
+
 ## ⚙️ Configuration
 
 Here is a full example of the `setup` function.
