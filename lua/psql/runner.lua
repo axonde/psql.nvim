@@ -32,24 +32,29 @@ end
 --- Opens an interactive psql shell for a given connection.
 --- @param conn_details table
 function M.open_shell(conn_details)
-	-- ИСПРАВЛЕНО: Полностью переписано на vim.fn.jobstart для безопасности.
-	-- Этот метод не использует shell и передает аргументы напрямую,
-	-- что предотвращает ошибки с любыми спецсимволами в пароле.
+	-- ИСПРАВЛЕНО: Используем vim.fn.termopen, который является самым надежным
+	-- способом запуска интерактивной команды в новом окне терминала.
+	-- Он принимает аргументы как список, что исключает ошибки с экранированием.
 
 	local args = prepare_args(conn_details)
-	local job_opts = {
-		pty = true, -- Запускаем в PTY, чтобы получить интерактивный терминал
+	local term_opts = {
 		env = {},
+		on_exit = function(_, code)
+			-- Уведомляем пользователя, когда сессия psql завершается.
+			vim.schedule(function()
+				vim.notify(string.format("PSQL session exited with code %d", code), vim.log.levels.INFO)
+			end)
+		end,
 	}
 
 	if conn_details.encrypted_password then
-		job_opts.env.PGPASSWORD = crypto.decrypt(conn_details.encrypted_password)
+		term_opts.env.PGPASSWORD = crypto.decrypt(conn_details.encrypted_password)
 	end
 
-	-- Создаем новый пустой буфер для терминала
+	-- Создаем новое окно и запускаем в нем терминал с psql.
 	vim.cmd("enew")
-	-- Запускаем psql в этом буфере
-	vim.fn.jobstart(args, job_opts)
+	vim.fn.termopen(args, term_opts)
+	vim.cmd("startinsert") -- Сразу переходим в режим ввода в терминале.
 end
 
 --- Executes a non-interactive query and returns the output.

@@ -13,12 +13,18 @@ local M = {}
 --- @param output string The text to display.
 --- @param filetype string The filetype for the new buffer.
 local function display_in_buffer(output, filetype)
-	local strategy = config.config.runner_output
+	-- Если вывод пустой, ничего не делаем, чтобы не открывать пустые окна.
+	if not output or #output == 0 then
+		vim.notify("PSQL: Query produced no output.", vim.log.levels.INFO)
+		return
+	end
+
+	local strategy = config.options.runner_output
 	if strategy == "term" then
 		vim.cmd("enew")
 		vim.cmd("setlocal buftype=nofile bufhidden=wipe noswapfile")
 		vim.api.nvim_buf_set_name(0, "psql_output")
-		vim.fn.termopen(nil, {
+		vim.fn.termopen("psql", {
 			on_stdout = function(_, data)
 				vim.api.nvim_buf_set_lines(0, -1, -1, false, data)
 			end,
@@ -32,7 +38,7 @@ local function display_in_buffer(output, filetype)
 	elseif strategy == "vsplit" then
 		vim.cmd("vnew")
 	else
-		vim.cmd("new") -- Default to new split
+		vim.cmd("new")
 	end
 
 	vim.bo.filetype = filetype
@@ -48,7 +54,6 @@ end
 local function execute_on_selection(query_provider, on_success)
 	local conn_names = connections.get_connection_names()
 	if #conn_names == 0 then
-		-- ИСПРАВЛЕНО: Сообщение снова ссылается на справку.
 		vim.notify("PSQL: No connections configured. See :h psql.nvim for help.", vim.log.levels.WARN)
 		return
 	end
@@ -71,11 +76,14 @@ local function execute_on_selection(query_provider, on_success)
 		vim.notify("PSQL: Executing query...", vim.log.levels.INFO)
 		runner.execute_query(conn.details, query, function(stdout, stderr, code)
 			vim.schedule(function()
+				-- ИСПРАВЛЕНО: Улучшенная логика обработки вывода.
 				if code == 0 then
 					vim.notify("PSQL: Query executed successfully.", vim.log.levels.INFO)
 					on_success(stdout)
 				else
-					vim.notify("PSQL: Query failed. See output buffer for details.", vim.log.levels.ERROR)
+					-- Если код ошибки не 0, показываем stderr.
+					-- Это поможет увидеть ошибки подключения, пароля и т.д.
+					vim.notify("PSQL: Query failed. See output for details.", vim.log.levels.ERROR)
 					display_in_buffer(stderr, "text")
 				end
 			end)
@@ -87,7 +95,6 @@ end
 function M.select_and_connect()
 	local conn_names = connections.get_connection_names()
 	if #conn_names == 0 then
-		-- ИСПРАВЛЕНО: Сообще-ние снова ссылается на справку.
 		vim.notify("PSQL: No connections configured. See :h psql.nvim for help.", vim.log.levels.WARN)
 		return
 	end
