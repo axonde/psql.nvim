@@ -3,6 +3,7 @@
   Handles executing psql commands and displaying their output.
 ]]
 
+local config = require("psql.config")
 local crypto = require("psql.crypto")
 
 local M = {}
@@ -41,13 +42,18 @@ function M.open_shell(conn_details)
 
 	local term_command
 	if env.PGPASSWORD then
-		-- Set env var only for this command to keep it out of shell history
-		term_command = string.format("env PGPASSWORD='%s' %s", env.PGPASSWORD, cmd_string)
+		-- ИСПРАВЛЕНО: Экранируем одинарные кавычки в пароле для оболочки.
+		-- Заменяем ' на '\''.
+		local escaped_password = env.PGPASSWORD:gsub("'", "'\\''")
+
+		-- Устанавливаем переменную окружения только для этой команды, чтобы она не попала в историю.
+		term_command = string.format("env PGPASSWORD='%s' %s", escaped_password, cmd_string)
 	else
 		term_command = cmd_string
 	end
 
-	vim.cmd("enew | term " .. term_command)
+	-- Используем :terminal для большей надежности при передаче сложных команд.
+	vim.cmd("enew | terminal " .. term_command)
 end
 
 --- Executes a non-interactive query and returns the output.
@@ -71,7 +77,9 @@ function M.execute_query(conn_details, query, callback)
 	}, function(code)
 		stdout:close()
 		stderr:close()
-		handle:close()
+		if handle and not handle:is_closing() then
+			handle:close()
+		end
 		callback(table.concat(stdout_chunks), table.concat(stderr_chunks), code)
 	end)
 
