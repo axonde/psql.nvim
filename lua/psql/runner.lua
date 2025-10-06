@@ -1,6 +1,9 @@
 --[[
   psql.nvim - PSQL Command Runner
-  Handles executing psql commands and displaying their output.
+  
+  *****************************************************************
+  *** ВНИМАНИЕ: ЭТО ОТЛАДОЧНАЯ ВЕРСИЯ ДЛЯ ПРОВЕРКИ PGPASSWORD ***
+  *****************************************************************
 ]]
 
 local config = require("psql.config")
@@ -51,16 +54,15 @@ function M.open_shell(conn_details)
 	vim.cmd("startinsert")
 end
 
---- Executes a non-interactive query and returns the output.
+--- Executes[48;45;144;1800;2880t a non-interactive query and returns the output.
 --- @param conn_details table
 --- @param query string The SQL query to execute.
 --- @param callback function A function to call with the output (stdout, stderr, code).
 function M.execute_query(conn_details, query, callback)
-	local args = prepare_args(conn_details)
-	vim.list_extend(args, { "-c", query })
+	-- ОТЛАДКА: Вместо psql, мы запускаем 'env' (или 'printenv' на некоторых системах),
+	-- чтобы проверить, передается ли переменная PGPASSWORD.
+	local args = { "env" }
 
-	-- ИСПРАВЛЕНО: Формируем переменные окружения в правильном формате "KEY=VALUE" для vim.loop.spawn.
-	-- Это гарантирует, что PGPASSWORD будет передан и psql не будет "зависать" в ожидании пароля.
 	local env_vars
 	if conn_details.encrypted_password then
 		env_vars = { "PGPASSWORD=" .. crypto.decrypt(conn_details.encrypted_password) }
@@ -74,7 +76,7 @@ function M.execute_query(conn_details, query, callback)
 	local handle
 	handle = vim.loop.spawn(args[1], {
 		args = vim.list_slice(args, 2),
-		env = env_vars, -- Передаем переменные в правильном формате
+		env = env_vars,
 		stdio = { nil, stdout, stderr },
 	}, function(code)
 		stdout:close()
