@@ -8,15 +8,10 @@ local crypto = require("psql.crypto")
 
 local M = {}
 
---- Prepares the environment and arguments for a psql command.
+--- Prepares the arguments for a psql command.
 --- @param conn_details table The connection details object.
---- @return table, table Environment variables and command arguments.
-local function prepare_command(conn_details)
-	local env = {}
-	if conn_details.encrypted_password then
-		env.PGPASSWORD = crypto.decrypt(conn_details.encrypted_password)
-	end
-
+--- @return table Command arguments.
+local function prepare_args(conn_details)
 	local args = { "psql" }
 	if conn_details.host then
 		vim.list_extend(args, { "-h", conn_details.host })
@@ -31,29 +26,30 @@ local function prepare_command(conn_details)
 		vim.list_extend(args, { "-d", conn_details.dbname })
 	end
 
-	return env, args
+	return args
 end
 
 --- Opens an interactive psql shell for a given connection.
 --- @param conn_details table
 function M.open_shell(conn_details)
-	local env, args = prepare_command(conn_details)
-	local cmd_string = table.concat(args, " ")
+	-- ИСПРАВЛЕНО: Полностью переписано на vim.fn.jobstart для безопасности.
+	-- Этот метод не использует shell и передает аргументы напрямую,
+	-- что предотвращает ошибки с любыми спецсимволами в пароле.
 
-	local term_command
-	if env.PGPASSWORD then
-		-- ИСПРАВЛЕНО: Экранируем одинарные кавычки в пароле для оболочки.
-		-- Заменяем ' на '\''.
-		local escaped_password = env.PGPASSWORD:gsub("'", "'\\''")
+	local args = prepare_args(conn_details)
+	local job_opts = {
+		pty = true, -- Запускаем в PTY, чтобы получить интерактивный терминал
+		env = {},
+	}
 
-		-- Устанавливаем переменную окружения только для этой команды, чтобы она не попала в историю.
-		term_command = string.format("env PGPASSWORD='%s' %s", escaped_password, cmd_string)
-	else
-		term_command = cmd_string
+	if conn_details.encrypted_password then
+		job_opts.env.PGPASSWORD = crypto.decrypt(conn_details.encrypted_password)
 	end
 
-	-- Используем :terminal для большей надежности при передаче сложных команд.
-	vim.cmd("enew | terminal " .. term_command)
+	-- Создаем новый пустой буфер для терминала
+	vim.cmd("enew")
+	-- Запускаем psql в этом буфере
+	vim.fn.jobstart(args, job_opts)
 end
 
 --- Executes a non-interactive query and returns the output.
@@ -61,8 +57,13 @@ end
 --- @param query string The SQL query to execute.
 --- @param callback function A function to call with the output (stdout, stderr, code).
 function M.execute_query(conn_details, query, callback)
-	local env, args = prepare_command(conn_details)
+	local args = prepare_args(conn_details)
 	vim.list_extend(args, { "-c", query })
+
+	local env = {}
+	if conn_details.encrypted_password then
+		env.PGPASSWORD = crypto.decrypt(conn_details.encrypted_password)
+	end
 
 	local stdout = vim.loop.new_pipe(false)
 	local stderr = vim.loop.new_pipe(false)
