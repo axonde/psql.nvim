@@ -1,16 +1,9 @@
 --[[
   psql.nvim - PSQL Command Runner
-  This is the final, production-ready version.
 ]]
-
-local config = require("psql.config")
-local crypto = require("psql.crypto")
 
 local M = {}
 
---- Prepares the arguments for a psql command.
---- @param conn_details table The connection details object.
---- @return table Command arguments.
 local function prepare_args(conn_details)
 	local args = { "psql" }
 	if conn_details.host then
@@ -25,80 +18,49 @@ local function prepare_args(conn_details)
 	if conn_details.dbname then
 		vim.list_extend(args, { "-d", conn_details.dbname })
 	end
-
 	return args
 end
 
---- Opens an interactive psql shell for a given connection.
---- @param conn_details table
 function M.open_shell(conn_details)
 	local args = prepare_args(conn_details)
-	local term_opts = {
-		env = {},
-		on_exit = function(_, code)
-			vim.schedule(function()
-				vim.notify(string.format("PSQL session exited with code %d", code), vim.log.levels.INFO)
-			end)
-		end,
-	}
-
-	if conn_details.encrypted_password then
-		term_opts.env.PGPASSWORD = crypto.decrypt(conn_details.encrypted_password)
+	local term_opts = { env = {} }
+	if conn_details.password then
+		term_opts.env.PGPASSWORD = conn_details.password
 	end
-
 	vim.cmd("enew")
 	vim.fn.termopen(args, term_opts)
 	vim.cmd("startinsert")
 end
 
---- Executes a non-interactive query and returns the output.
---- @param conn_details table
---- @param query string The SQL query to execute.
---- @param callback function A function to call with the output (stdout, stderr, code).
 function M.execute_query(conn_details, query, callback)
 	local args = prepare_args(conn_details)
 	vim.list_extend(args, { "-w", "-c", query })
 
-	local env_vars = {}
+	local env_vars = { "PATH=" .. os.getenv("PATH") }
 	local passfile_path
-	local decrypted_password
 
-	-- ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ: Мы должны вручную передать PATH,
-	-- так как vim.loop.spawn заменяет, а не дополняет окружение.
-	local path_var = os.getenv("PATH")
-	if path_var then
-		table.insert(env_vars, "PATH=" .. path_var)
-	end
-
-	if conn_details.encrypted_password then
-		decrypted_password = crypto.decrypt(conn_details.encrypted_password)
-	end
-
-	if decrypted_password then
+	if conn_details.password then
 		passfile_path = vim.fn.tempname()
 		local passfile, err = io.open(passfile_path, "w")
 		if not passfile then
-			vim.notify("PSQL: Could not create temporary password file: " .. err, vim.log.levels.ERROR)
+			vim.notify("PSQL: Could not create temp password file: " .. err, vim.log.levels.ERROR)
 		else
 			local function escape(s)
-				return s:gsub("([:\\\\])", "\\%1")
+				return (s or ""):gsub("([:\\\\])", "\\%1")
 			end
-			local host = escape(conn_details.host or "*")
-			local port = escape(tostring(conn_details.port or "*"))
-			local dbname = escape(conn_details.dbname or "*")
-			local user = escape(conn_details.user or "*")
-			local password = escape(decrypted_password)
-			passfile:write(string.format("%s:%s:%s:%s:%s", host, port, dbname, user, password))
+			local host = escape(conn_details.host)
+			local port = escape(tostring(conn_details.port))
+			local dbname = escape(conn_details.dbname)
+			local user = escape(conn_details.user)
+			passfile:write(string.format("%s:%s:%s:%s:%s", host, port, dbname, user, conn_details.password))
 			passfile:close()
 			vim.fn.setfperm(passfile_path, "rw-------")
 			table.insert(env_vars, "PGPASSFILE=" .. passfile_path)
 		end
 	end
 
-	local stdout = vim.loop.new_pipe(false)
-	local stderr = vim.loop.new_pipe(false)
-	local stdout_chunks = {}
-	local stderr_chunks = {}
+	local stdout, stderr = vim.loop.new_pipe(false), vim.loop.new_pipe(false)
+	local stdout_chunks, stderr_chunks = {}, {}
 
 	local handle
 	handle = vim.loop.spawn(args[1], {

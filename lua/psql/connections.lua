@@ -1,24 +1,17 @@
 --[[
   psql.nvim - Connection Management
-  Parses, stores, and retrieves connection details from the config.
 ]]
 
--- ИСПРАВЛЕНО: Убрана лишняя зависимость, теперь только от config и crypto
 local config = require("psql.config")
-local crypto = require("psql.crypto")
 
 local M = {}
 
--- Internal storage for parsed connections
 local loaded_connections = {}
 
---- Parses a PostgreSQL URL into its components.
---- @param url string The connection URL.
---- @return table|nil A table with connection details or nil on failure.
 local function parse_url(url)
 	local rest = url:match("^postgres[ql]*://(.*)")
 	if not rest then
-		vim.notify("PSQL: Invalid connection URL format (must start with postgresql://): " .. url, vim.log.levels.ERROR)
+		vim.notify("PSQL: Invalid connection URL format: " .. url, vim.log.levels.ERROR)
 		return nil
 	end
 
@@ -31,6 +24,8 @@ local function parse_url(url)
 			details.password = nil
 		end
 		rest = host_port_db
+	else
+		details.password = nil
 	end
 
 	local host_port, dbname = rest:match("([^/]+)/?(.*)")
@@ -53,14 +48,12 @@ local function parse_url(url)
 	return details
 end
 
---- Loads and processes connections from the global config.
 function M.load()
 	loaded_connections = {}
-	-- ИСПРАВЛЕНО: Получаем подключения из config.options
 	local user_connections = config.options.connections or {}
 
 	if #user_connections == 0 then
-		vim.notify("PSQL: No connections configured in `setup`. See :h psql.nvim", vim.log.levels.WARN)
+		vim.notify("PSQL: No connections configured. See :h psql.nvim", vim.log.levels.WARN)
 	end
 
 	for _, conn_config in ipairs(user_connections) do
@@ -81,11 +74,6 @@ function M.load()
 			end
 
 			if details then
-				if details.password then
-					details.encrypted_password = crypto.encrypt(details.password)
-					details.password = nil
-				end
-
 				table.insert(loaded_connections, {
 					name = conn_config.name,
 					details = details,
@@ -95,8 +83,6 @@ function M.load()
 	end
 end
 
---- Returns a list of all configured connection names.
---- @return string[]
 function M.get_connection_names()
 	local names = {}
 	for _, conn in ipairs(loaded_connections) do
@@ -105,9 +91,6 @@ function M.get_connection_names()
 	return names
 end
 
---- Retrieves full connection details by its name.
---- @param name string The name of the connection.
---- @return table|nil The connection object or nil if not found.
 function M.get_connection_by_name(name)
 	for _, conn in ipairs(loaded_connections) do
 		if conn.name == name then
