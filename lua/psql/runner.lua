@@ -1,6 +1,10 @@
 --[[
   psql.nvim - PSQL Command Runner
-  This is the final, production-ready version using the recommended .pgpass method.
+  
+  *******************************************************************************
+  *** ВНИМАНИЕ: ФИНАЛЬНАЯ ОТЛАДКА С ПОМОЩЬЮ PSQL_TRACE                       ***
+  *** Этот код запишет подробный лог действий psql в файл.                   ***
+  *******************************************************************************
 ]]
 
 local config = require("psql.config")
@@ -43,7 +47,6 @@ function M.open_shell(conn_details)
 	}
 
 	if conn_details.encrypted_password then
-		-- Для интерактивной сессии PGPASSWORD работает отлично.
 		term_opts.env.PGPASSWORD = crypto.decrypt(conn_details.encrypted_password)
 	end
 
@@ -58,7 +61,6 @@ end
 --- @param callback function A function to call with the output (stdout, stderr, code).
 function M.execute_query(conn_details, query, callback)
 	local args = prepare_args(conn_details)
-	-- Мы все еще используем -w, чтобы гарантировать отсутствие интерактивных запросов.
 	vim.list_extend(args, { "-w", "-c", query })
 
 	local env_vars = {}
@@ -69,35 +71,31 @@ function M.execute_query(conn_details, query, callback)
 		decrypted_password = crypto.decrypt(conn_details.encrypted_password)
 	end
 
-	-- ФИНАЛЬНОЕ РЕШЕНИЕ: Используем временный файл паролей, как рекомендует документация.
 	if decrypted_password then
 		passfile_path = vim.fn.tempname()
 		local passfile, err = io.open(passfile_path, "w")
 		if not passfile then
 			vim.notify("PSQL: Could not create temporary password file: " .. err, vim.log.levels.ERROR)
-		-- Продолжаем без файла, возможно, сработает другой метод аутентификации.
 		else
-			-- Формат: hostname:port:database:username:password
-			-- Экранируем символы ':' и '\' в параметрах.
 			local function escape(s)
 				return s:gsub("([:\\\\])", "\\%1")
 			end
-
 			local host = escape(conn_details.host or "*")
 			local port = escape(tostring(conn_details.port or "*"))
 			local dbname = escape(conn_details.dbname or "*")
 			local user = escape(conn_details.user or "*")
 			local password = escape(decrypted_password)
-
 			passfile:write(string.format("%s:%s:%s:%s:%s", host, port, dbname, user, password))
 			passfile:close()
-
-			-- Устанавливаем права 600 (только чтение/запись для владельца) для безопасности.
 			vim.fn.setfperm(passfile_path, "rw-------")
-
 			table.insert(env_vars, "PGPASSFILE=" .. passfile_path)
 		end
 	end
+
+	-- ФИНАЛЬНАЯ ОТЛАДКА: Устанавливаем PSQL_TRACE
+	local trace_file_path = vim.fn.tempname()
+	table.insert(env_vars, "PSQL_TRACE=" .. trace_file_path)
+	vim.notify("PSQL: Tracing psql execution. Trace file: " .. trace_file_path, vim.log.levels.INFO)
 
 	local stdout = vim.loop.new_pipe(false)
 	local stderr = vim.loop.new_pipe(false)
@@ -115,10 +113,10 @@ function M.execute_query(conn_details, query, callback)
 		if handle and not handle:is_closing() then
 			handle:close()
 		end
-		-- Надежно удаляем временный файл паролей после выполнения команды.
 		if passfile_path then
 			os.remove(passfile_path)
 		end
+		-- Мы не удаляем trace_file, чтобы вы могли его прочитать.
 		callback(table.concat(stdout_chunks), table.concat(stderr_chunks), code)
 	end)
 
