@@ -3,7 +3,7 @@
   WARNING: This is NOT a cryptographically secure implementation.
 ]]
 
-local config = require("psql.config") -- Зависимость только от config
+local config = require("psql.config")
 
 local M = {}
 
@@ -11,11 +11,10 @@ local M = {}
 --- @param text string The input text (plaintext or encrypted).
 --- @return string The transformed text.
 local function transform(text)
-	-- ИСПРАВЛЕНО: Получаем ключ напрямую из модуля config
 	local key = config.options.crypto_key
 	if not key or #key == 0 then
 		vim.notify("PSQL Crypto: `crypto_key` is not set!", vim.log.levels.WARN)
-		return text -- Return as-is if key is missing
+		return text
 	end
 
 	local result = {}
@@ -32,14 +31,16 @@ end
 --- @return string Base64-encoded encrypted text.
 function M.encrypt(plaintext)
 	local encrypted = transform(plaintext)
-	return vim.fn.base64encode(encrypted)
+	-- ИСПРАВЛЕНО: Используем современный и надежный API vim.encode
+	return vim.encode(encrypted, { encoding = "base64" })
 end
 
 --- Decrypts text.
 --- @param base64_text string Base64-encoded text to decrypt.
 --- @return string The decrypted plaintext.
 function M.decrypt(base64_text)
-	local encrypted = vim.fn.base64decode(base64_text)
+	-- ИСПРАВЛЕНО: Используем современный и надежный API vim.decode
+	local encrypted = vim.decode(base64_text, { encoding = "base64" })
 	return transform(encrypted)
 end
 
