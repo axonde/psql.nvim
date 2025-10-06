@@ -13,7 +13,6 @@ local M = {}
 --- @param output string The text to display.
 --- @param filetype string The filetype for the new buffer.
 local function display_in_buffer(output, filetype)
-	-- Если вывод пустой, ничего не делаем, чтобы не открывать пустые окна.
 	if not output or #output == 0 then
 		vim.notify("PSQL: Query produced no output.", vim.log.levels.INFO)
 		return
@@ -76,13 +75,10 @@ local function execute_on_selection(query_provider, on_success)
 		vim.notify("PSQL: Executing query...", vim.log.levels.INFO)
 		runner.execute_query(conn.details, query, function(stdout, stderr, code)
 			vim.schedule(function()
-				-- ИСПРАВЛЕНО: Улучшенная логика обработки вывода.
 				if code == 0 then
 					vim.notify("PSQL: Query executed successfully.", vim.log.levels.INFO)
 					on_success(stdout)
 				else
-					-- Если код ошибки не 0, показываем stderr.
-					-- Это поможет увидеть ошибки подключения, пароля и т.д.
 					vim.notify("PSQL: Query failed. See output for details.", vim.log.levels.ERROR)
 					display_in_buffer(stderr, "text")
 				end

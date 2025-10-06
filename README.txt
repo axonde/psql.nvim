@@ -2,15 +2,12 @@
 
 A lightweight Neovim plugin to work with PostgreSQL directly from your editor. Forget external connection managers—keep your workflow entirely within Neovim.
 
-![demo](https://user-images.githubusercontent.com/1/256789895-718f4a38-953e-4b49-b0c6-3027b58c734e.gif)
-
 ## ✨ Features
 
 - **No External Dependencies**: Manages connections internally. The only requirement is having the `psql` command-line tool installed.
 - **Simple Configuration**: Configure all your connections with a simple Lua table.
 - **Interactive Shell**: Quickly launch a `psql` shell for any configured database in a Neovim terminal.
 - **Run Queries**: Execute SQL from your buffer and see the results in a new split.
-- **Secure**: Passwords are not stored in plaintext in memory and are obfuscated in your config (via simple encryption).
 
 ## ⚡️ Requirements
 
@@ -26,7 +23,7 @@ Install using your favorite plugin manager.
 ```lua
 -- lua/plugins/psql.lua
 return {
-  'your-github-username/psql.nvim',
+  'axonde/psql.nvim',
   cmd = { 'Psql', 'PsqlExec', 'PsqlListDBs' },
   config = function()
     require('psql').setup({
@@ -35,7 +32,6 @@ return {
   end,
 }
 ```
-> **Note**: Replace `'your-github-username/psql.nvim'` with the actual repository path once you publish it.
 
 ## ⚙️ Configuration
 
@@ -61,10 +57,6 @@ require('psql').setup({
     },
   },
 
-  -- It is HIGHLY recommended to change this key for security.
-  -- This key is used for basic password obfuscation.
-  crypto_key = 'my-super-secret-and-unique-key',
-
   -- Determines how query results are displayed.
   -- Can be 'split', 'vsplit', or 'term'.
   runner_output = 'split',
@@ -76,7 +68,6 @@ require('psql').setup({
 - `connections` (table): A list of your database connections. Each connection is a table that must have a `name` and either:
   - A `url` string.
   - Individual properties: `host`, `port`, `user`, `password`, `dbname`.
-- `crypto_key` (string): A secret key used to obfuscate passwords. **This is not a replacement for a secure vault.** It only prevents storing passwords in plaintext in your config file. **You should change the default value.**
 - `runner_output` (string): Defines where the output of non-interactive queries is shown.
   - `'split'`: In a new horizontal split (default).
   - `'vsplit'`: In a new vertical split.
