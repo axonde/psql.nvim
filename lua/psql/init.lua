@@ -12,8 +12,15 @@ local M = {}
 --- @public
 --- @param user_config table User configuration to merge with defaults.
 function M.setup(user_config)
+	if vim.fn.executable("psql") == 0 then
+		vim.notify("PSQL: `psql` command not found in your PATH.", vim.log.levels.ERROR)
+		return
+	end
+
 	config.setup(user_config)
 	connections.load()
+
+	vim.notify("psql.nvim loaded successfully!", vim.log.levels.INFO)
 end
 
 -- Expose other modules for advanced users if needed
