@@ -1,96 +1,157 @@
-*psql.txt*	psql.nvim plugin documentation
+*psql.txt*                                                   psql.nvim plugin documentation
 
 ==============================================================================
-CONTENTS                                     *psql-contents*
+CONTENTS                                                             *psql-contents*
 
-  1. Introduction...................|psql-introduction|
-  2. Usage..........................|psql-usage|
-  3. Configuration..................|psql-configuration|
-  4. Commands.......................|psql-commands|
-
-==============================================================================
-1. Introduction                               *psql-introduction*
-
-psql.nvim is a simple Neovim plugin to interact with PostgreSQL databases
-directly from the editor. It allows you to manage connections, open a `psql`
-shell, and run queries without external dependencies like `psqlcm`.
+  1. Введение.................................................|psql-introduction|
+  2. Установка................................................|psql-installation|
+  3. Конфигурация.............................................|psql-configuration|
+     - Пример конфигурации....................................|psql-config-example|
+     - Параметры..............................................|psql-config-options|
+  4. Использование............................................|psql-usage|
+     - Команды................................................|psql-commands|
+  5. Безопасность.............................................|psql-security|
+  6. Решение проблем..........................................|psql-troubleshooting|
 
 ==============================================================================
-2. Usage                                             *psql-usage*
+1. Введение                                               *psql-introduction*
 
-First, you need to configure your database connections. See |psql-configuration|.
+*psql.nvim* — это легковесный плагин для Neovim, который позволяет работать
+с базами данных PostgreSQL напрямую из редактора. Он создан, чтобы избавить
+вас от необходимости использовать внешние утилиты для управления подключениями
+и выполнять запросы, полностью интегрируя этот процесс в среду Neovim.
 
-Once configured, you can use the |:Psql| command to open a selector and
-connect to one of your configured databases. This will open an interactive
-`psql` shell in a new terminal buffer.
-
-You can also execute the content of the current buffer as a SQL query using
-the |:PsqlExec| command.
+Основные возможности:
+- Управление подключениями без внешних зависимостей (кроме `psql`).
+- Простая и понятная конфигурация через Lua.
+- Быстрый запуск интерактивной консоли `psql`.
+- Выполнение SQL-запросов из буфера с выводом результата в новый сплит.
 
 ==============================================================================
-3. Configuration                               *psql-configuration*
+2. Установка                                           *psql-installation*
 
-You must configure the plugin by calling the `setup` function. It's recommended
-to do this in your `init.lua` or a dedicated plugin configuration file.
+Для установки рекомендуется использовать менеджер плагинов, например, `lazy.nvim`.
 
-Example:
+Пример для `lazy.nvim`:
 >lua
-  require('psql').setup({
-    -- A list of your database connections
-    connections = {
-      {
-        name = "My Local DB",
-        -- You can use a URL
-        url = "postgresql://user:password@localhost:5432/mydatabase",
-      },
-      {
-        name = "Work Staging (no password)",
-        host = "staging.example.com",
-        port = 5432,
-        user = "readonly_user",
-        dbname = "staging_db",
-      },
+-- lua/plugins/psql.lua
+return {
+  'your-github-username/psql.nvim',
+  cmd = { 'Psql', 'PsqlExec', 'PsqlListDBs' },
+  config = function()
+    require('psql').setup({
+      -- ваша конфигурация здесь
+    })
+  end,
+}
+<
+Замените `'your-github-username/psql.nvim'` на реальный путь к репозиторию.
+
+==============================================================================
+3. Конфигурация                                       *psql-configuration*
+
+Конфигурация плагина осуществляется вызовом функции `setup`.
+
+*psql-config-example*
+Пример полной конфигурации:
+>lua
+require('psql').setup({
+  -- Список ваших подключений к базам данных
+  connections = {
+    {
+      name = "Локальная БД",
+      -- Можно использовать стандартный URL-адрес PostgreSQL
+      url = "postgresql://user:password@localhost:5432/mydatabase",
     },
+    {
+      name = "Рабочий Staging (без пароля)",
+      -- Или определить параметры подключения по отдельности
+      host = "staging.example.com",
+      port = 5432,
+      user = "readonly_user",
+      dbname = "staging_db",
+    },
+  },
 
-    -- It is HIGHLY recommended to change this key for security.
-    crypto_key = 'my-super-secret-and-unique-key',
+  -- КРАЙНЕ рекомендуется изменить этот ключ!
+  -- Он используется для простого шифрования паролей.
+  crypto_key = 'мой-супер-секретный-и-уникальный-ключ',
 
-    -- How to display query results ('term', 'split', 'vsplit')
-    runner_output = 'split',
-  })
+  -- Определяет, как отображаются результаты запросов.
+  -- Возможные значения: 'split', 'vsplit', 'term'.
+  runner_output = 'split',
+})
 <
 
-------------------------------------------------------------------------------
-CONFIGURATION OPTIONS
+*psql-config-options*
+Детальное описание параметров:
 
 `connections`
-  (table) A list of connection tables. Each table must have a `name` and
-  either a `url` string or individual properties (`host`, `port`, `user`,
-  `password`, `dbname`).
+  (table) Список ваших подключений. Каждое подключение — это таблица,
+  которая должна содержать:
+  - `name` (string): Уникальное имя для подключения, которое будет
+    отображаться в меню выбора.
+  - ИЛИ `url` (string): Стандартный URL-адрес подключения PostgreSQL.
+  - ИЛИ набор полей: `host`, `port`, `user`, `password`, `dbname`.
 
 `crypto_key`
-  (string) A secret key used to obfuscate passwords. This does not provide
-  strong encryption but prevents storing passwords in plaintext.
-  Default: 'psql.nvim-is-awesome!'
+  (string) Секретный ключ, используемый для шифрования паролей.
+  Это **не замена** безопасному хранилищу вроде системной связки ключей
+  или Vault. Ключ лишь предотвращает хранение паролей в открытом виде
+  в вашем конфигурационном файле. **Вы должны изменить значение по умолчанию.**
 
 `runner_output`
-  (string) Determines where the output of non-interactive queries is shown.
-  - 'term': In a new terminal buffer (default for interactive shell).
-  - 'split': In a new horizontal split.
-  - 'vsplit': In a new vertical split.
-  Default: 'term'
+  (string) Определяет, где будет показан результат выполнения неинтерактивных
+  запросов (например, через |:PsqlExec|).
+  - `'split'`: В новом горизонтальном сплите (по умолчанию).
+  - `'vsplit'`: В новом вертикальном сплите.
+  - `'term'`: В новом окне терминала.
 
 ==============================================================================
-4. Commands                                             *psql-commands*
+4. Использование                                                 *psql-usage*
+
+*psql-commands*
+Плагин предоставляет три основные команды:
 
 *:Psql*
-  Opens a `vim.ui.select` window to choose a configured database connection.
-  Opens an interactive `psql` shell for the selected connection.
+  Открывает окно выбора (`vim.ui.select`) со списком настроенных подключений.
+  После выбора открывает интерактивную консоль `psql` для этой базы данных
+  в новом окне терминала Neovim.
 
 *:PsqlExec*
-  Executes the entire content of the current buffer as a SQL query. It will
-  ask you to select a connection to run the query on. The results are
-  displayed in a new buffer according to the `runner_output` setting.
+  Выполняет всё содержимое текущего буфера как SQL-запрос. Сначала плагин
+  попросит вас выбрать, к какой базе данных подключиться. Результат будет
+  отображен в соответствии с настройкой `runner_output`.
 
 *:PsqlListDBs*
-  Connects to a selected database and lists all available databases (`\l` command).
+  Удобная команда для просмотра списка всех баз данных на выбранном сервере.
+  Выполняет команду `\l` в `psql`.
+
+==============================================================================
+5. Безопасность                                               *psql-security*
+
+Пароли, указанные в конфигурации, не хранятся в памяти в открытом виде после
+загрузки. Они шифруются с помощью простого XOR-алгоритма с использованием
+вашего `crypto_key`.
+
+**ВАЖНО**: Этот метод является обфускацией (маскировкой), а не надежным
+шифрованием. Он защищает только от случайного просмотра вашего файла
+конфигурации. Не используйте этот метод для хранения критически важных
+паролей в публичных репозиториях. Для максимальной безопасности рассмотрите
+возможность интеграции с системными хранилищами секретов.
+
+==============================================================================
+6. Решение проблем                                     *psql-troubleshooting*
+
+`PSQL: 'psql' command not found in your PATH.`
+  Эта ошибка означает, что плагин не может найти утилиту `psql`. Убедитесь,
+  что PostgreSQL установлен и путь к его исполняемым файлам (`bin`) добавлен
+  в системную переменную `PATH`.
+
+`PSQL: No connections configured. See :h psql.nvim for help.`
+  Эта ошибка означает, что список `connections` в вашей конфигурации пуст
+  или не задан. Откройте ваш конфигурационный файл и убедитесь, что вы
+  правильно настроили хотя бы одно подключение внутри функции `setup`.
+  См. |psql-config-example|.
+
+vim:tw=78:ts=8:sw=2:sts=2:et:ft=help:norl:
