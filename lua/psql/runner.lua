@@ -1,9 +1,6 @@
 --[[
   psql.nvim - PSQL Command Runner
-  
-  *****************************************************************
-  *** ВНИМАНИЕ: ЭТО ОТЛАДОЧНАЯ ВЕРСИЯ ДЛЯ ПРОВЕРКИ PGPASSWORD ***
-  *****************************************************************
+  This is the final, production-ready version.
 ]]
 
 local config = require("psql.config")
@@ -54,14 +51,17 @@ function M.open_shell(conn_details)
 	vim.cmd("startinsert")
 end
 
---- Executes[48;45;144;1800;2880t a non-interactive query and returns the output.
+--- Executes a non-interactive query and returns the output.
 --- @param conn_details table
 --- @param query string The SQL query to execute.
 --- @param callback function A function to call with the output (stdout, stderr, code).
 function M.execute_query(conn_details, query, callback)
-	-- ОТЛАДКА: Вместо psql, мы запускаем 'env' (или 'printenv' на некоторых системах),
-	-- чтобы проверить, передается ли переменная PGPASSWORD.
-	local args = { "env" }
+	local args = prepare_args(conn_details)
+
+	-- ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ: Добавляем флаг -w (--no-password).
+	-- Это приказывает psql никогда не запрашивать пароль интерактивно.
+	-- Если PGPASSWORD верный, команда выполнится. Если нет - завершится с ошибкой, а не зависнет.
+	vim.list_extend(args, { "-w", "-c", query })
 
 	local env_vars
 	if conn_details.encrypted_password then
