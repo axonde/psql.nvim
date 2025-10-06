@@ -1,0 +1,96 @@
+*psql.txt*	psql.nvim plugin documentation
+
+==============================================================================
+CONTENTS                                     *psql-contents*
+
+  1. Introduction...................|psql-introduction|
+  2. Usage..........................|psql-usage|
+  3. Configuration..................|psql-configuration|
+  4. Commands.......................|psql-commands|
+
+==============================================================================
+1. Introduction                               *psql-introduction*
+
+psql.nvim is a simple Neovim plugin to interact with PostgreSQL databases
+directly from the editor. It allows you to manage connections, open a `psql`
+shell, and run queries without external dependencies like `psqlcm`.
+
+==============================================================================
+2. Usage                                             *psql-usage*
+
+First, you need to configure your database connections. See |psql-configuration|.
+
+Once configured, you can use the |:Psql| command to open a selector and
+connect to one of your configured databases. This will open an interactive
+`psql` shell in a new terminal buffer.
+
+You can also execute the content of the current buffer as a SQL query using
+the |:PsqlExec| command.
+
+==============================================================================
+3. Configuration                               *psql-configuration*
+
+You must configure the plugin by calling the `setup` function. It's recommended
+to do this in your `init.lua` or a dedicated plugin configuration file.
+
+Example:
+>lua
+  require('psql').setup({
+    -- A list of your database connections
+    connections = {
+      {
+        name = "My Local DB",
+        -- You can use a URL
+        url = "postgresql://user:password@localhost:5432/mydatabase",
+      },
+      {
+        name = "Work Staging (no password)",
+        host = "staging.example.com",
+        port = 5432,
+        user = "readonly_user",
+        dbname = "staging_db",
+      },
+    },
+
+    -- It is HIGHLY recommended to change this key for security.
+    crypto_key = 'my-super-secret-and-unique-key',
+
+    -- How to display query results ('term', 'split', 'vsplit')
+    runner_output = 'split',
+  })
+<
+
+------------------------------------------------------------------------------
+CONFIGURATION OPTIONS
+
+`connections`
+  (table) A list of connection tables. Each table must have a `name` and
+  either a `url` string or individual properties (`host`, `port`, `user`,
+  `password`, `dbname`).
+
+`crypto_key`
+  (string) A secret key used to obfuscate passwords. This does not provide
+  strong encryption but prevents storing passwords in plaintext.
+  Default: 'psql.nvim-is-awesome!'
+
+`runner_output`
+  (string) Determines where the output of non-interactive queries is shown.
+  - 'term': In a new terminal buffer (default for interactive shell).
+  - 'split': In a new horizontal split.
+  - 'vsplit': In a new vertical split.
+  Default: 'term'
+
+==============================================================================
+4. Commands                                             *psql-commands*
+
+*:Psql*
+  Opens a `vim.ui.select` window to choose a configured database connection.
+  Opens an interactive `psql` shell for the selected connection.
+
+*:PsqlExec*
+  Executes the entire content of the current buffer as a SQL query. It will
+  ask you to select a connection to run the query on. The results are
+  displayed in a new buffer according to the `runner_output` setting.
+
+*:PsqlListDBs*
+  Connects to a selected database and lists all available databases (`\l` command).

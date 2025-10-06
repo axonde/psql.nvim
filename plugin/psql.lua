@@ -1,42 +1,28 @@
-local psql = require('psql')
+--[[
+  psql.nvim - Entry point
+  Defines user-facing commands.
+]]
 
-vim.api.nvim_create_user_command(
-	"PgRun",
-	psql.psql_run_curr_buf,
-	{}
-)
-vim.api.nvim_create_user_command(
-	"PgCancel",
-	psql.psql_cancel,
-	{}
-)
+-- Define the main command for the plugin
+vim.api.nvim_create_user_command("Psql", function()
+	require("psql.ui").select_and_connect()
+end, {
+	nargs = 0,
+	desc = "PSQL: Open a connection selection window",
+})
 
-vim.api.nvim_create_user_command(
-	"PgTemp",
-	psql.psql_temp,
-	{}
-)
+-- A command to run a query from the current buffer
+vim.api.nvim_create_user_command("PsqlExec", function()
+	require("psql.ui").execute_current_buffer()
+end, {
+	nargs = 0,
+	desc = "PSQL: Execute the content of the current buffer on a selected connection",
+})
 
-vim.api.nvim_create_user_command(
-	"PgGetTable",
-	psql.psql_get_tables,
-	{}
-)
-
-vim.api.nvim_create_user_command(
-	"PgGetDatabase",
-	psql.psql_get_databases,
-	{}
-)
-
-vim.api.nvim_create_user_command(
-	"PgGetFunction",
-	psql.psql_get_functions,
-	{}
-)
-
-vim.api.nvim_create_user_command(
-	"PgFmt",
-	psql.psql_format,
-	{}
-)
+-- A command to list databases
+vim.api.nvim_create_user_command("PsqlListDBs", function()
+	require("psql.ui").list_databases()
+end, {
+	nargs = 0,
+	desc = "PSQL: List[48;45;144;1800;2880t databases on a selected connection",
+})
