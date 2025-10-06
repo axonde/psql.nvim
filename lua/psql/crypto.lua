@@ -1,7 +1,6 @@
 --[[
   psql.nvim - Basic Crypto for Password Obfuscation
-  This version includes a pure Lua Base64 implementation to avoid
-  depending on a potentially missing Neovim API.
+  This version uses a standard, correct, pure-Lua Base64 implementation.
 ]]
 
 local config = require("psql.config")
@@ -9,12 +8,12 @@ local config = require("psql.config")
 local M = {}
 
 -- =============================================================================
--- Pure Lua Base64 Implementation
+-- Каноническая и корректная реализация Base64 на чистом Lua
 -- =============================================================================
 do
 	local b = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
-	function M.base64_encode(data)
+	local function enc(data)
 		return (
 			(data:gsub(".", function(x)
 				local r, b = "", x:byte()
@@ -35,7 +34,7 @@ do
 		)
 	end
 
-	function M.base64_decode(data)
+	local function dec(data)
 		data = string.gsub(data, "[^" .. b .. "=]", "")
 		return (
 			data:gsub(".", function(x)
@@ -59,6 +58,9 @@ do
 			end)
 		)
 	end
+
+	M.base64_encode = enc
+	M.base64_decode = dec
 end
 -- =============================================================================
 
@@ -86,7 +88,6 @@ end
 --- @return string Base64-encoded encrypted text.
 function M.encrypt(plaintext)
 	local encrypted = transform(plaintext)
-	-- ИСПРАВЛЕНО: Используем собственную реализацию Base64
 	return M.base64_encode(encrypted)
 end
 
@@ -94,7 +95,6 @@ end
 --- @param base64_text string Base64-encoded text to decrypt.
 --- @return string The decrypted plaintext.
 function M.decrypt(base64_text)
-	-- ИСПРАВЛЕНО: Используем собственную реализацию Base64
 	local encrypted = M.base64_decode(base64_text)
 	return transform(encrypted)
 end
