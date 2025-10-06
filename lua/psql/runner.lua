@@ -32,15 +32,10 @@ end
 --- Opens an interactive psql shell for a given connection.
 --- @param conn_details table
 function M.open_shell(conn_details)
-	-- ИСПРАВЛЕНО: Используем vim.fn.termopen, который является самым надежным
-	-- способом запуска интерактивной команды в новом окне терминала.
-	-- Он принимает аргументы как список, что исключает ошибки с экранированием.
-
 	local args = prepare_args(conn_details)
 	local term_opts = {
 		env = {},
 		on_exit = function(_, code)
-			-- Уведомляем пользователя, когда сессия psql завершается.
 			vim.schedule(function()
 				vim.notify(string.format("PSQL session exited with code %d", code), vim.log.levels.INFO)
 			end)
@@ -51,10 +46,9 @@ function M.open_shell(conn_details)
 		term_opts.env.PGPASSWORD = crypto.decrypt(conn_details.encrypted_password)
 	end
 
-	-- Создаем новое окно и запускаем в нем терминал с psql.
 	vim.cmd("enew")
 	vim.fn.termopen(args, term_opts)
-	vim.cmd("startinsert") -- Сразу переходим в режим ввода в терминале.
+	vim.cmd("startinsert")
 end
 
 --- Executes a non-interactive query and returns the output.
@@ -65,9 +59,11 @@ function M.execute_query(conn_details, query, callback)
 	local args = prepare_args(conn_details)
 	vim.list_extend(args, { "-c", query })
 
-	local env = {}
+	-- ИСПРАВЛЕНО: Формируем переменные окружения в правильном формате "KEY=VALUE" для vim.loop.spawn.
+	-- Это гарантирует, что PGPASSWORD будет передан и psql не будет "зависать" в ожидании пароля.
+	local env_vars
 	if conn_details.encrypted_password then
-		env.PGPASSWORD = crypto.decrypt(conn_details.encrypted_password)
+		env_vars = { "PGPASSWORD=" .. crypto.decrypt(conn_details.encrypted_password) }
 	end
 
 	local stdout = vim.loop.new_pipe(false)
@@ -78,7 +74,7 @@ function M.execute_query(conn_details, query, callback)
 	local handle
 	handle = vim.loop.spawn(args[1], {
 		args = vim.list_slice(args, 2),
-		env = env,
+		env = env_vars, -- Передаем переменные в правильном формате
 		stdio = { nil, stdout, stderr },
 	}, function(code)
 		stdout:close()
