@@ -1,10 +1,9 @@
 --[[
   psql.nvim - Basic Crypto for Password Obfuscation
   WARNING: This is NOT a cryptographically secure implementation.
-  It only serves to avoid storing passwords in plaintext.
 ]]
 
-local config = require("psql.config")
+local config = require("psql.config") -- Зависимость только от config
 
 local M = {}
 
@@ -12,7 +11,8 @@ local M = {}
 --- @param text string The input text (plaintext or encrypted).
 --- @return string The transformed text.
 local function transform(text)
-	local key = config.config.crypto_key
+	-- ИСПРАВЛЕНО: Получаем ключ напрямую из модуля config
+	local key = config.options.crypto_key
 	if not key or #key == 0 then
 		vim.notify("PSQL Crypto: `crypto_key` is not set!", vim.log.levels.WARN)
 		return text -- Return as-is if key is missing

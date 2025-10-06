@@ -3,6 +3,7 @@
   Parses, stores, and retrieves connection details from the config.
 ]]
 
+-- ИСПРАВЛЕНО: Убрана лишняя зависимость, теперь только от config и crypto
 local config = require("psql.config")
 local crypto = require("psql.crypto")
 
@@ -12,35 +13,54 @@ local M = {}
 local loaded_connections = {}
 
 --- Parses a PostgreSQL URL into its components.
---- This version is more robust and handles optional parts correctly.
 --- @param url string The connection URL.
 --- @return table|nil A table with connection details or nil on failure.
 local function parse_url(url)
-	-- A more robust pattern: postgresql://[user[:password]@]host[:port][/dbname]
-	local _, _, user, password, host, port, dbname =
-		url:find("^postgres[ql]*://(?:([^:@]+)(?::([^@]+))?@)?([^:/]+)(?::(%d+))?/(.*)$")
-
-	if not host then
-		vim.notify("PSQL: Invalid connection URL format: " .. url, vim.log.levels.ERROR)
+	local rest = url:match("^postgres[ql]*://(.*)")
+	if not rest then
+		vim.notify("PSQL: Invalid connection URL format (must start with postgresql://): " .. url, vim.log.levels.ERROR)
 		return nil
 	end
 
-	return {
-		user = user and #user > 0 and user or nil,
-		password = password and #password > 0 and password or nil,
-		host = host,
-		port = port and tonumber(port) or 5432,
-		dbname = dbname and #dbname > 0 and dbname or nil,
-	}
+	local details = {}
+	local user_pass, host_port_db = rest:match("([^@]+)@(.*)")
+
+	if host_port_db then
+		details.user, details.password = user_pass:match("([^:]+):?(.*)")
+		if details.password == "" then
+			details.password = nil
+		end
+		rest = host_port_db
+	end
+
+	local host_port, dbname = rest:match("([^/]+)/?(.*)")
+	if dbname and dbname ~= "" then
+		details.dbname = dbname
+	end
+
+	details.host, details.port = host_port:match("([^:]+):?(%d*)")
+	if details.port and details.port ~= "" then
+		details.port = tonumber(details.port)
+	else
+		details.port = 5432
+	end
+
+	if not details.host then
+		vim.notify("PSQL: Could not parse host from URL: " .. url, vim.log.levels.ERROR)
+		return nil
+	end
+
+	return details
 end
 
 --- Loads and processes connections from the global config.
 function M.load()
 	loaded_connections = {}
-	local user_connections = config.config.connections or {}
+	-- ИСПРАВЛЕНО: Получаем подключения из config.options
+	local user_connections = config.options.connections or {}
 
 	if #user_connections == 0 then
-		vim.notify("PSQL: No connections configured in `setup`.", vim.log.levels.WARN)
+		vim.notify("PSQL: No connections configured in `setup`. See :h psql.nvim", vim.log.levels.WARN)
 	end
 
 	for _, conn_config in ipairs(user_connections) do
@@ -63,7 +83,7 @@ function M.load()
 			if details then
 				if details.password then
 					details.encrypted_password = crypto.encrypt(details.password)
-					details.password = nil -- Don't keep plaintext password in memory
+					details.password = nil
 				end
 
 				table.insert(loaded_connections, {
