@@ -9,6 +9,9 @@ local config = require("psql.config")
 
 local M = {}
 
+-- Track the output window ID to reuse it
+local output_win_id = nil
+
 --- Displays query results in a new buffer.
 --- @param output string The text to display.
 --- @param filetype string The filetype for the new buffer.
@@ -32,19 +35,46 @@ local function display_in_buffer(output, filetype)
 		return
 	end
 
-	if strategy == "split" then
-		vim.cmd("new")
-	elseif strategy == "vsplit" then
-		vim.cmd("vnew")
-	else
-		vim.cmd("new")
+	-- Check if the tracked output window still exists and is valid
+	local reuse_window = false
+	if output_win_id and vim.api.nvim_win_is_valid(output_win_id) then
+		local buf = vim.api.nvim_win_get_buf(output_win_id)
+		-- Check if the buffer has our marker variable
+		local ok, is_psql_output = pcall(vim.api.nvim_buf_get_var, buf, "psql_output_buffer")
+		if ok and is_psql_output then
+			reuse_window = true
+		end
 	end
 
-	vim.bo.filetype = filetype
-	vim.bo.buftype = "nofile"
-	vim.bo.bufhidden = "wipe"
-	vim.bo.swapfile = false
-	vim.api.nvim_buf_set_lines(0, 0, -1, false, vim.split(output, "\n"))
+	if reuse_window then
+		-- Switch to existing window
+		vim.api.nvim_set_current_win(output_win_id)
+		local buf = vim.api.nvim_win_get_buf(output_win_id)
+		-- Clear and update buffer content
+		vim.api.nvim_buf_set_lines(buf, 0, -1, false, vim.split(output, "\n"))
+		vim.bo[buf].filetype = filetype
+	else
+		-- Create new window
+		if strategy == "split" then
+			vim.cmd("new")
+		elseif strategy == "vsplit" then
+			vim.cmd("vnew")
+		else
+			vim.cmd("new")
+		end
+
+		-- Store window ID for reuse
+		output_win_id = vim.api.nvim_get_current_win()
+
+		vim.bo.filetype = filetype
+		vim.bo.buftype = "nofile"
+		vim.bo.bufhidden = "wipe"
+		vim.bo.swapfile = false
+		vim.api.nvim_buf_set_lines(0, 0, -1, false, vim.split(output, "\n"))
+		
+		-- Mark this buffer as a psql output buffer
+		vim.api.nvim_buf_set_var(0, "psql_output_buffer", true)
+	end
 end
 
 --- Generic function to execute a query on a selected connection.
